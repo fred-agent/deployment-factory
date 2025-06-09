@@ -1,0 +1,55 @@
+services:
+
+  kube:
+    image: mirror.gcr.io/rancher/k3s:v1.30.3-k3s1
+    container_name: fred-kube
+    privileged: true
+    environment:
+      NO_PROXY: "fred-kube"
+      K3S_KUBECONFIG_OUTPUT: /usr/local/etc/.kube/config
+      K3S_KUBECONFIG_MODE: 644
+      K3S_BIND_ADDRESS: 0.0.0.0
+      K3S_TOKEN: Azerty123_
+    volumes:
+      - vol-kubeconfig:/usr/local/etc/.kube
+    command:
+      - "server"
+      - "--tls-san"
+      - "fred-kube"
+    networks:
+      - fred-network
+    ports:
+    - 6443:6443
+    healthcheck:
+      test: "kubectl get nodes"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kube-post-install-job:
+    image: mirror.gcr.io/alpine:3.21.3
+    container_name: fred-kube-post-install-job
+    volumes:
+      - vol-kubeconfig:/root/.kube
+      - ./kube-post-install-job/:/opt/
+    environment:
+      NO_PROXY: "fred-kube"
+      KUBECONFIG: /root/.kube/config
+    entrypoint: 
+      - /bin/sh
+      - -c
+    command:
+      - sh /opt/kube-post-install.sh
+    networks:
+      - fred-network
+    depends_on:
+      kube:
+        condition: service_healthy
+
+volumes:
+  vol-kubeconfig:
+
+networks:
+  fred-network:
+    external: true
+    name: fred-shared-network

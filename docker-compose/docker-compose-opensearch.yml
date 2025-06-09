@@ -1,0 +1,112 @@
+services:
+
+  opensearch-pre-install-job:
+    container_name: app-opensearch-pre-install-job
+    image: mirror.gcr.io/alpine:3.21.3
+    environment:
+      no_proxy: "*"
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        apk update
+        apk add --no-cache bash openssl
+        /opt/opensearch-pre-install-job/create_self_certs.sh /usr/share/opensearch/config/certs
+        chown -R 1000:1000 /usr/share/opensearch/config/certs
+    volumes:
+      - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - ./opensearch-pre-install-job/:/opt/opensearch-pre-install-job/
+    networks:
+      - fred-network
+
+  opensearch:
+    container_name: app-opensearch
+    image: mirror.gcr.io/opensearchproject/opensearch:2.18.0
+    command:
+      - -Ediscovery.type=single-node
+    environment:
+      no_proxy: "*"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./opensearch/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+      - ./opensearch/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
+      - ./opensearch/roles.yml:/usr/share/opensearch/config/opensearch-security/roles.yml
+      - ./opensearch/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
+    networks:
+      - fred-network
+    ports:
+      -  0.0.0.0:9200:9200/tcp
+    depends_on:
+      opensearch-pre-install-job:
+        condition: service_completed_successfully
+    healthcheck:
+      test: curl --insecure https://localhost:9200/_cluster/health
+      interval: 60s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+      start_interval: 10s
+
+  opensearch-post-install-job:
+    container_name: app-opensearch-post-install-job
+    image: mirror.gcr.io/opensearchproject/opensearch:2.18.0
+    environment:
+      no_proxy: "*"
+    entrypoint:
+      - /bin/bash
+      - -c
+    command:
+      - >-
+        bash /opt/opensearch-post-install-job/create_users_and_roles.sh app-opensearch &&
+        bash /opt/opensearch-post-install-job/wait_for_os_init.sh app-opensearch &&
+        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch metadata-index &&
+        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch vector-index &&
+        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch active-sessions-index &&
+        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch chat-interactions-index
+    volumes:
+      - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+      - ./opensearch/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
+      - ./opensearch/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
+      - ./opensearch/roles.yml:/usr/share/opensearch/config/opensearch-security/roles.yml
+      - ./opensearch/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
+      - ./opensearch-post-install-job/:/opt/opensearch-post-install-job/
+    networks:
+      - fred-network
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  opensearch-dashboards:
+    container_name: app-opensearch-dashboards
+    image: mirror.gcr.io/opensearchproject/opensearch-dashboards:2.18.0
+    environment:
+      no_proxy: "*"
+    volumes:
+      - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - ./opensearch-dashboards/opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+    networks:
+      - fred-network
+    ports:
+      - 0.0.0.0:5601:5601/TCP
+    depends_on:
+      opensearch-post-install-job:
+        condition: service_completed_successfully
+    healthcheck:
+      test: curl --fail http://localhost:5601
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+      start_interval: 1s
+
+volumes:
+  vol-opensearch-certs:
+
+networks:
+  fred-network:
+    external: true
+    name: fred-shared-network

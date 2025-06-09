@@ -1,0 +1,77 @@
+services:
+
+  postgres:
+    container_name: app-postgres
+    image: mirror.gcr.io/postgres:15.12-alpine3.20
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: Azerty123_
+      POSTGRES_DB: app_db
+    networks:
+      - fred-network
+    ports:
+      - 0.0.0.0:5432:5432/tcp
+    healthcheck:
+      test: "pg_isready -U admin -d postgres"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-post-install-job:
+    container_name: app-postgres-post-install-job
+    image: mirror.gcr.io/postgres:15.12-alpine3.20
+    volumes:
+      - ./postgres-post-install-job/create_env.sh:/usr/local/bin/create_env.sh
+    environment:
+      PGPASSWORD: Azerty123_
+    entrypoint:
+      - /bin/bash
+      - -c
+    command:
+      - >-
+        chmod +x /usr/local/bin/create_env.sh &&
+        create_env.sh "keycloak" "keycloak_db_user" "Azerty123_" "app-postgres"
+    networks:
+      - fred-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      
+  keycloak:
+    container_name: app-keycloak
+    image: mirror.gcr.io/keycloak/keycloak:25.0
+    environment:
+      KC_HTTP_ENABLE: true
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://app-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak_db_user
+      KC_DB_PASSWORD: Azerty123_
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: Azerty123_
+    command:
+      - start-dev
+      - --import-realm
+    volumes:
+      - ./keycloak/app-realm.json:/opt/keycloak/data/import/app-realm.json
+    networks:
+      - fred-network
+    ports:
+      - 0.0.0.0:8080:8080/tcp
+    depends_on:
+      postgres-post-install-job:
+        condition: service_completed_successfully
+    healthcheck:
+      test: /opt/keycloak/bin/kcadm.sh get realms/app --fields id --server http://localhost:8080 --realm master --user $$KEYCLOAK_ADMIN --password $$KEYCLOAK_ADMIN_PASSWORD
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      start_interval: 10s
+
+networks:
+  fred-network:
+    external: true
+    name: fred-shared-network
