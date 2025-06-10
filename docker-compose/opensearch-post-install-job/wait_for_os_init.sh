@@ -14,9 +14,9 @@
 
 #!/usr/bin/env bash
 
-CLUSTER_NAME=$1
+CLUSTER_NAME=app-opensearch
 TIMEOUT=120
-CURL_CMD="curl https://$CLUSTER_NAME:9200/_cluster/health --insecure --silent --user admin:Azerty123_ --request GET"
+CURL_CMD="curl -k -s -u $OPENSEARCH_ADMIN:$OPENSEARCH_ADMIN_PASSWORD https://$CLUSTER_NAME:9200/_cluster/health"
 
 cat << EOF
 
@@ -38,4 +38,3 @@ do
 done
 
 echo "OpenSearch is ready and secured"
-

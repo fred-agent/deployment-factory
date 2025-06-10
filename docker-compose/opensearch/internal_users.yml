@@ -2,8 +2,8 @@ _meta:
   type: "internalusers"
   config_version: 2
 
-admin:
-  hash: $2y$12$h.SKV7oNwGH1YzXR4kuNj.h.JadXGymBLGnAbxnlcYoCZ5BLwE7em
+__OPENSEARCH_ADMIN__:
+  hash: __OPENSEARCH_ADMIN_PASSWORD_HASH__
   backend_roles:
     - "admin"
 

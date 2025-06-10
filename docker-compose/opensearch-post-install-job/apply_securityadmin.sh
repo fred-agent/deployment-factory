@@ -14,7 +14,7 @@
 
 #!/usr/bin/env bash
 
-CLUSTER_NAME=$1
+CLUSTER_NAME=app-opensearch
 
 while ! /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
     --accept-red-cluster \

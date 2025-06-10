@@ -20,6 +20,10 @@ STATE="France"
 LOCATION="Rennes"
 ORGANIZATION="Dev"
 
+# -----------------------------------------------------------------------------
+# Functions
+# -----------------------------------------------------------------------------
+
 function generate_root_cert
 {
     [ ! -f ca.key ] && \
@@ -42,9 +46,18 @@ function generate_cert
         cat ${NAME}.crt ${NAME}.key > ${NAME}.pem
 }
 
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
+[ ! -d $CERTS_DIR ] && mkdir $CERTS_DIR
+
 cd $CERTS_DIR
 
 generate_root_cert
 generate_cert "transport" "node"
 generate_cert "admin" "admin"
 generate_cert "rest" "rest"
+
+# User:group is 1000:1000 in OpenSearch docker images
+chown -R 1000:1000 $CERTS_DIR
