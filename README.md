@@ -2,13 +2,13 @@
 <!-- TODO: Rajouter Kube dashboard dans le kubernetes -->
 # Deployment factory for Fred
 
-The `deployment-factory` repository provides the Docker compose based deployment setup for the `fred-agent` projects ecosystem. It serves as a centralized environment to orchestrate and run the common infrastructure services required by the other `fred-agent` projects.
+The `deployment-factory` repository provides the Docker Compose based deployment setup for the `fred-agent` projects ecosystem. It serves as a centralized environment to orchestrate and run the common infrastructure services required by the other `fred-agent` projects.
 
-These services provides:
+This project helps to deploy the following support services:
 - **Keycloak** – for authentication and identity management
 - **MinIO** – for object storage
-- **OpenSearch** – for search and analytics capabilities
-- **k3d** - for setting up a dummy kubernetes cluster (used by fred project only for development purposes)
+- **OpenSearch** – for search and analytics capabilities (including vector store capabilities)
+- **k3d** - for setting up a dummy kubernetes cluster (used by Fred project only for development purposes)
 
 This repository aims to simplify local development and testing by providing a ready-to-use, reproducible environment for all shared dependencies across the `fred-agent` projects.
 
@@ -20,7 +20,8 @@ All these docker-compose files share the same network called `fred-shared-networ
 docker network create fred-shared-network --driver bridge
 ```
 
-And add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` to be correctly redirected from your web browser.
+<!-- TODO: This is required only if the browser used to access Fred's frontend is on the same machine as the one where Keycloak is hosted as a container. If not in that case, search and replace is the solution now -->
+And add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` so that your web browser can reach Keycloak instance for authentication.
 
 ```sh
 grep -q '127.0.0.1.*app-keycloak' /etc/hosts || echo "127.0.0.1 app-keycloak" | sudo tee -a /etc/hosts
@@ -28,14 +29,15 @@ grep -q '127.0.0.1.*app-keycloak' /etc/hosts || echo "127.0.0.1 app-keycloak" | 
 
 ## Deployment
 
-All these services can be started separetaly.
+All these services can be started separately.
 
-Keycloak is already configured with some clients, roles and users.  
+Keycloak is already configured with some clients, roles and users.
 
-Minio and Opensearch are already configured to be connected to keycloak. This is a graph to show the dependancies between compose files:
+Minio and Opensearch are already configured to be connected to Keycloak. This is a graph to show the dependencies between compose files:
 
 ```mermaid
 graph TB
+E(postgres) --> A(keycloak)
 A(keycloak) --> B(minio)
 A(keycloak) --> C(opensearch)
 D(kubernetes)
@@ -45,22 +47,24 @@ Launch the components according to your needs with these command lines:
 
 - Keycloak
 ```
-docker compose -f docker-compose-keycloak.yml up -d
+docker compose -f docker-compose-keycloak.yml -p keycloak up -d
 ```
+
+<!-- TODO: Need to check how we can specify hard dependency between Keycloak and depending services (MinIO & Opensearch) -->
 
 - MinIO
 ```
-docker compose -f docker-compose-minio.yml up -d
+docker compose -f docker-compose-minio.yml -p minio up -d
 ```
 
 - OpenSearch
 ```
-docker compose -f docker-compose-opensearch.yml up -d
+docker compose -f docker-compose-opensearch.yml -p opensearch up -d
 ```
 
-- k3d
+- Lightweight Kubernetes distribution (k3d)
 ```
-docker compose -f docker-compose-kubernetes.yml up -d
+docker compose -f docker-compose-kubernetes.yml -p kubernetes up -d
 ```
 
 ## Access the service interfaces
@@ -69,9 +73,9 @@ docker compose -f docker-compose-kubernetes.yml up -d
 
 Hereunder these are _the nominative SSO accounts_ registered into the Keycloak realm and their roles:
 
-  - alice (role: admin)
-  - bob (roles: editor, viewer)
-  - phil (role: viewer)
+  - ``alice`` (role: ``admin``)
+  - ``bob`` (roles: ``editor``, ``viewer``)
+  - ``phil`` (role: ``viewer``)
 
 Hereunder, these are the information to connect to each service with their _local service accounts_.
 
