@@ -49,6 +49,7 @@ services:
 
 volumes:
   vol-kubeconfig:
+    name: vol-kubeconfig
 
 networks:
   app-network:

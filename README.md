@@ -37,10 +37,10 @@ Minio and Opensearch are already configured to be connected to Keycloak. This is
 
 ```mermaid
 graph TB
-E(postgres) --> A(keycloak)
-A(keycloak) --> B(minio)
-A(keycloak) --> C(opensearch)
-D(kubernetes)
+A(keycloak) --> E(postgres)
+B(minio) --> A(keycloak)
+C(opensearch) --> A(keycloak)
+F(k8s mcp) --> G(kubernetes)
 ```
 
 Launch the components according to your needs with these command lines:
@@ -65,6 +65,11 @@ docker compose -f docker-compose-opensearch.yml -p opensearch up -d
 - Lightweight Kubernetes distribution (k3d)
 ```
 docker compose -f docker-compose-kubernetes.yml -p kubernetes up -d
+```
+
+- Kubernetes MCP Server
+```
+docker compose -f docker-compose-k8s-mcp.yml -p k8s-mcp up -d
 ```
 
 ## Access the service interfaces
