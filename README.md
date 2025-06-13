@@ -47,29 +47,29 @@ Launch the components according to your needs with these command lines:
 
 - Keycloak
 ```
-docker compose -f docker-compose-keycloak.yml -p keycloak up -d
+docker compose -f docker-compose/docker-compose-keycloak.yml -p keycloak up -d
 ```
 
 <!-- TODO: Need to check how we can specify hard dependency between Keycloak and depending services (MinIO & Opensearch) -->
 
 - MinIO
 ```
-docker compose -f docker-compose-minio.yml -p minio up -d
+docker compose -f docker-compose/docker-compose-minio.yml -p minio up -d
 ```
 
 - OpenSearch
 ```
-docker compose -f docker-compose-opensearch.yml -p opensearch up -d
+docker compose -f docker-compose/docker-compose-opensearch.yml -p opensearch up -d
 ```
 
 - Lightweight Kubernetes distribution (k3d)
 ```
-docker compose -f docker-compose-kubernetes.yml -p kubernetes up -d
+docker compose -f docker-compose/docker-compose-kubernetes.yml -p kubernetes up -d
 ```
 
 - Kubernetes MCP Server
 ```
-docker compose -f docker-compose-k8s-mcp.yml -p k8s-mcp up -d
+docker compose -f docker-compose/docker-compose-k8s-mcp.yml -p k8s-mcp up -d
 ```
 
 ## Access the service interfaces
