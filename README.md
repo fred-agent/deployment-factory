@@ -9,6 +9,7 @@ This project helps to deploy the following support services:
 - **MinIO** – for object storage
 - **OpenSearch** – for search and analytics capabilities (including vector store capabilities)
 - **k3d** - for setting up a dummy kubernetes cluster (used by Fred project only for development purposes)
+- **Kubernetes MCP Server** - so that AI agents can interact with Kubernetes clusters
 
 This repository aims to simplify local development and testing by providing a ready-to-use, reproducible environment for all shared dependencies across the `fred-agent` projects.
 
@@ -20,14 +21,30 @@ All these docker-compose files share the same network called `fred-shared-networ
 docker network create fred-shared-network --driver bridge
 ```
 
-<!-- TODO: This is required only if the browser used to access Fred's frontend is on the same machine as the one where Keycloak is hosted as a container. If not in that case, search and replace is the solution now -->
-And add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` so that your web browser can reach Keycloak instance for authentication.
+**Note** : If the browser used to access Fred's frontend is on the same machine as the one where Keycloak is hosted as a container, please add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` so that your web browser can reach Keycloak instance for authentication:
 
 ```sh
 grep -q '127.0.0.1.*app-keycloak' /etc/hosts || echo "127.0.0.1 app-keycloak" | sudo tee -a /etc/hosts
 ```
 
+## Configuration 
+
+Please create a ``.env`` file in the ``docker-compose`` to customize your deployment by copying and adapting the ``docker-compose/.env.sample`` file: 
+
+
+```bash
+cp docker-compose/.env.sample docker-compose/.env
+```
+
+Here are **examples** of custom deployment params you can modify:
+- ``DOCKER_COMPOSE_HOST_FQDN``
+- ``POSTGRES_ADMIN_PASSWORD``
+- ``MINIO_ROOT_USER``
+- ``MINIO_ROOT_PASSWORD``
+- ``OPENSEARCH_ADMIN_PASSWORD``
+
 ## Deployment
+
 
 All these services can be started separately.
 
@@ -86,7 +103,7 @@ Hereunder, these are the information to connect to each service with their _loca
 
 ### Keycloak
 
-- URL: http://localhost:8080
+- URL: http://$(DOCKER_COMPOSE_HOST_FQDN):8080
 - Service accounts:
   - `admin`
 - Realm: `app`
@@ -94,8 +111,8 @@ Hereunder, these are the information to connect to each service with their _loca
 ### MinIO:
 
 - URLs:
-  - http://localhost:9001 (web)
-  - http://localhost:9000 (service)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):9001 (web)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):9000 (service)
 - Service accounts:
   - `admin` (admin)
   - `app_ro` (read-only)
@@ -107,8 +124,8 @@ Hereunder, these are the information to connect to each service with their _loca
 ### OpenSearch
 
 - URLs:
-  - http://localhost:5601 (dashboard)
-  - https://localhost:9200 (service)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):5601 (dashboard)
+  - https://$(DOCKER_COMPOSE_HOST_FQDN):9200 (service)
 - Service accounts:
   - `admin` (admin)
   - `app_ro` (read-only)
