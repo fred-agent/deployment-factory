@@ -29,7 +29,7 @@ config:
           config:
             subject_key: "preferred_username"
             roles_key: "opensearch_roles"
-            openid_connect_url: "http://app-keycloak:8080/realms/app/.well-known/openid-configuration"
+            openid_connect_url: "http://__KEYCLOAK_HOST__:8080/realms/app/.well-known/openid-configuration"
             client_id: "opensearch-dashboards"
             client_secret: "Azerty123_"
         authentication_backend:

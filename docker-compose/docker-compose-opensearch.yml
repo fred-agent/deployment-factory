@@ -5,20 +5,28 @@ services:
     image: mirror.gcr.io/alpine:3.21.3
     environment:
       no_proxy: "*"
+      KEYCLOAK_HOST: ${DOCKER_COMPOSE_HOST_FQDN:-app-keycloak}
+      OPENSEARCH_ADMIN: ${OPENSEARCH_ADMIN:-admin}
+      OPENSEARCH_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:-Azerty123_}
+      DOCKER_COMPOSE_HOST_FQDN: ${DOCKER_COMPOSE_HOST_FQDN:-localhost}
     entrypoint:
       - /bin/sh
       - -c
     command:
       - |
         apk update
-        apk add --no-cache bash openssl
-        /opt/opensearch-pre-install-job/create_self_certs.sh /usr/share/opensearch/config/certs
-        chown -R 1000:1000 /usr/share/opensearch/config/certs
+        apk add --no-cache bash openssl apache2-utils
+        create_self_certs.sh /usr/share/opensearch/config/certs
+        prepare_opensearch_config.sh
     volumes:
       - vol-opensearch-certs:/usr/share/opensearch/config/certs/
-      - ./opensearch-pre-install-job/:/opt/opensearch-pre-install-job/
+      - vol-opensearch-security:/usr/local/etc/opensearch-security/
+      - vol-opensearch-dashboards:/usr/local/etc/opensearch-dashboards/
+      - ./opensearch-pre-install-job/:/usr/local/bin/
+      - ./opensearch/:/tmp/opensearch-config/
+      - ./opensearch-dashboards:/tmp/opensearch-dashboards-config/
     networks:
-      - fred-network
+      - app-network
 
   opensearch:
     container_name: app-opensearch
@@ -30,13 +38,10 @@ services:
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     volumes:
       - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - vol-opensearch-security:/usr/share/opensearch/config/opensearch-security/
       - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
-      - ./opensearch/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
-      - ./opensearch/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
-      - ./opensearch/roles.yml:/usr/share/opensearch/config/opensearch-security/roles.yml
-      - ./opensearch/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
     networks:
-      - fred-network
+      - app-network
     ports:
       -  0.0.0.0:9200:9200/tcp
     depends_on:
@@ -55,27 +60,23 @@ services:
     image: mirror.gcr.io/opensearchproject/opensearch:2.18.0
     environment:
       no_proxy: "*"
+      OPENSEARCH_ADMIN: ${OPENSEARCH_ADMIN:-admin}
+      OPENSEARCH_ADMIN_PASSWORD: ${OPENSEARCH_ADMIN_PASSWORD:-Azerty123_}
     entrypoint:
       - /bin/bash
       - -c
     command:
-      - >-
-        bash /opt/opensearch-post-install-job/create_users_and_roles.sh app-opensearch &&
-        bash /opt/opensearch-post-install-job/wait_for_os_init.sh app-opensearch &&
-        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch metadata-index &&
-        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch vector-index &&
-        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch active-sessions-index &&
-        bash /opt/opensearch-post-install-job/create_indice.sh app-opensearch chat-interactions-index
+      - >
+        apply_securityadmin.sh && 
+        wait_for_os_init.sh &&
+        create_indice.sh metadata-index vector-index active-sessions-index chat-interactions-index
     volumes:
       - vol-opensearch-certs:/usr/share/opensearch/config/certs/
+      - vol-opensearch-security:/usr/share/opensearch/config/opensearch-security/
       - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
-      - ./opensearch/internal_users.yml:/usr/share/opensearch/config/opensearch-security/internal_users.yml
-      - ./opensearch/roles_mapping.yml:/usr/share/opensearch/config/opensearch-security/roles_mapping.yml
-      - ./opensearch/roles.yml:/usr/share/opensearch/config/opensearch-security/roles.yml
-      - ./opensearch/config.yml:/usr/share/opensearch/config/opensearch-security/config.yml
-      - ./opensearch-post-install-job/:/opt/opensearch-post-install-job/
+      - ./opensearch-post-install-job/:/usr/local/bin/
     networks:
-      - fred-network
+      - app-network
     depends_on:
       opensearch:
         condition: service_healthy
@@ -87,9 +88,9 @@ services:
       no_proxy: "*"
     volumes:
       - vol-opensearch-certs:/usr/share/opensearch/config/certs/
-      - ./opensearch-dashboards/opensearch-dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml
+      - vol-opensearch-dashboards:/usr/share/opensearch-dashboards/config/
     networks:
-      - fred-network
+      - app-network
     ports:
       - 0.0.0.0:5601:5601/TCP
     depends_on:
@@ -105,8 +106,10 @@ services:
 
 volumes:
   vol-opensearch-certs:
+  vol-opensearch-security:
+  vol-opensearch-dashboards:
 
 networks:
-  fred-network:
+  app-network:
     external: true
     name: fred-shared-network

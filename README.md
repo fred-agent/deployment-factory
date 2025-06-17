@@ -1,12 +1,15 @@
+<!-- TODO: Rajouter l'histoire du .env pour templatiser les déploiements  -->
+<!-- TODO: Rajouter Kube dashboard dans le kubernetes -->
 # Deployment factory for Fred
 
-The `deployment-factory` repository provides the Docker compose based deployment setup for the `fred-agent` projects ecosystem. It serves as a centralized environment to orchestrate and run the common infrastructure services required by the other `fred-agent` projects.
+The `deployment-factory` repository provides the Docker Compose based deployment setup for the `fred-agent` projects ecosystem. It serves as a centralized environment to orchestrate and run the common infrastructure services required by the other `fred-agent` projects.
 
-These services provides:
+This project helps to deploy the following support services:
 - **Keycloak** – for authentication and identity management
 - **MinIO** – for object storage
-- **OpenSearch** – for search and analytics capabilities
-- **k3d** - for setting up a dummy kubernetes cluster (used by fred project only for development purposes)
+- **OpenSearch** – for search and analytics capabilities (including vector store capabilities)
+- **k3d** - for setting up a dummy kubernetes cluster (used by Fred project only for development purposes)
+- **Kubernetes MCP Server** - so that AI agents can interact with Kubernetes clusters
 
 This repository aims to simplify local development and testing by providing a ready-to-use, reproducible environment for all shared dependencies across the `fred-agent` projects.
 
@@ -18,47 +21,72 @@ All these docker-compose files share the same network called `fred-shared-networ
 docker network create fred-shared-network --driver bridge
 ```
 
-And add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` to be correctly redirected from your web browser.
+**Note** : If the browser used to access Fred's frontend is on the same machine as the one where Keycloak is hosted as a container, please add the entry `127.0.0.1 app-keycloak` into your docker host `/etc/hosts` so that your web browser can reach Keycloak instance for authentication:
 
 ```sh
 grep -q '127.0.0.1.*app-keycloak' /etc/hosts || echo "127.0.0.1 app-keycloak" | sudo tee -a /etc/hosts
 ```
 
+## Configuration 
+
+Please create a ``.env`` file in the ``docker-compose`` to customize your deployment by copying and adapting the ``docker-compose/.env.sample`` file: 
+
+
+```bash
+cp docker-compose/.env.sample docker-compose/.env
+```
+
+Here are **examples** of custom deployment params you can modify:
+- ``DOCKER_COMPOSE_HOST_FQDN``
+- ``POSTGRES_ADMIN_PASSWORD``
+- ``MINIO_ROOT_USER``
+- ``MINIO_ROOT_PASSWORD``
+- ``OPENSEARCH_ADMIN_PASSWORD``
+
 ## Deployment
 
-All these services can be started separetaly.
 
-Keycloak is already configured with some clients, roles and users.  
+All these services can be started separately.
 
-Minio and Opensearch are already configured to be connected to keycloak. This is a graph to show the dependancies between compose files:
+Keycloak is already configured with some clients, roles and users.
+
+Minio and Opensearch are already configured to be connected to Keycloak. This is a graph to show the dependencies between compose files:
 
 ```mermaid
 graph TB
-A(keycloak) --> B(minio)
-A(keycloak) --> C(opensearch)
-D(kubernetes)
+A(keycloak) --> E(postgres)
+B(minio) --> A(keycloak)
+C(opensearch) --> A(keycloak)
+F(k8s mcp) --> G(kubernetes)
 ```
 
 Launch the components according to your needs with these command lines:
 
 - Keycloak
 ```
-docker compose -f docker-compose-keycloak.yml up -d
+docker compose -f docker-compose/docker-compose-keycloak.yml -p keycloak up -d
 ```
+
+<!-- TODO: Need to check how we can specify hard dependency between Keycloak and depending services (MinIO & Opensearch) -->
 
 - MinIO
 ```
-docker compose -f docker-compose-minio.yml up -d
+docker compose -f docker-compose/docker-compose-minio.yml -p minio up -d
 ```
 
 - OpenSearch
 ```
-docker compose -f docker-compose-opensearch.yml up -d
+docker compose -f docker-compose/docker-compose-opensearch.yml -p opensearch up -d
 ```
 
-- k3d
+- Lightweight Kubernetes distribution (k3d)
 ```
-docker compose -f docker-compose-kubernetes.yml up -d
+docker compose -f docker-compose/docker-compose-kubernetes.yml -p kubernetes up -d
+```
+
+- Kubernetes MCP Server
+```
+docker compose -f docker-compose/docker-compose-k8s-mcp.yml -p k8s-mcp up -d
 ```
 
 ## Access the service interfaces
@@ -67,15 +95,15 @@ docker compose -f docker-compose-kubernetes.yml up -d
 
 Hereunder these are _the nominative SSO accounts_ registered into the Keycloak realm and their roles:
 
-  - alice (role: admin)
-  - bob (roles: editor, viewer)
-  - phil (role: viewer)
+  - ``alice`` (role: ``admin``)
+  - ``bob`` (roles: ``editor``, ``viewer``)
+  - ``phil`` (role: ``viewer``)
 
 Hereunder, these are the information to connect to each service with their _local service accounts_.
 
 ### Keycloak
 
-- URL: http://localhost:8080
+- URL: http://$(DOCKER_COMPOSE_HOST_FQDN):8080
 - Service accounts:
   - `admin`
 - Realm: `app`
@@ -83,8 +111,8 @@ Hereunder, these are the information to connect to each service with their _loca
 ### MinIO:
 
 - URLs:
-  - http://localhost:9001 (web)
-  - http://localhost:9000 (service)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):9001 (web)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):9000 (service)
 - Service accounts:
   - `admin` (admin)
   - `app_ro` (read-only)
@@ -96,8 +124,8 @@ Hereunder, these are the information to connect to each service with their _loca
 ### OpenSearch
 
 - URLs:
-  - http://localhost:5601 (dashboard)
-  - https://localhost:9200 (service)
+  - http://$(DOCKER_COMPOSE_HOST_FQDN):5601 (dashboard)
+  - https://$(DOCKER_COMPOSE_HOST_FQDN):9200 (service)
 - Service accounts:
   - `admin` (admin)
   - `app_ro` (read-only)

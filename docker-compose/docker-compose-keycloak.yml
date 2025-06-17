@@ -4,15 +4,15 @@ services:
     container_name: app-postgres
     image: mirror.gcr.io/postgres:15.12-alpine3.20
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: Azerty123_
-      POSTGRES_DB: app_db
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-Azerty123_}
+      POSTGRES_DB: ${POSTGRES_ADMIN_DB:-postgres}
     networks:
-      - fred-network
+      - app-network
     ports:
       - 0.0.0.0:5432:5432/tcp
     healthcheck:
-      test: "pg_isready -U admin -d postgres"
+      test: "pg_isready -U ${POSTGRES_ADMIN_USER:-admin} -d postgres"
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,16 +23,24 @@ services:
     volumes:
       - ./postgres-post-install-job/create_env.sh:/usr/local/bin/create_env.sh
     environment:
-      PGPASSWORD: Azerty123_
+      POSTGRES_ADMIN_USER: ${POSTGRES_ADMIN_USER:-admin}
+      PGPASSWORD: ${POSTGRES_ADMIN_PASSWORD:-Azerty123_}
+      POSTGRES_KEYCLOAK_USER: ${POSTGRES_KEYCLOAK_USER:-keycloak_db_user}
+      POSTGRES_KEYCLOAK_PASSWORD: ${POSTGRES_KEYCLOAK_PASSWORD:-Azerty123_}
+      POSTGRES_KEYCLOAK_DB: ${POSTGRES_KEYCLOAK_DB:-keycloak}
     entrypoint:
       - /bin/bash
       - -c
     command:
-      - >-
-        chmod +x /usr/local/bin/create_env.sh &&
-        create_env.sh "keycloak" "keycloak_db_user" "Azerty123_" "app-postgres"
+      - |-
+        create_env.sh \
+          --admin "$$POSTGRES_ADMIN_USER" \
+          --host "app-postgres" \
+          --user "$$POSTGRES_KEYCLOAK_USER" \
+          --password "$$POSTGRES_KEYCLOAK_PASSWORD" \
+          --database "$$POSTGRES_KEYCLOAK_DB"
     networks:
-      - fred-network
+      - app-network
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,19 +53,27 @@ services:
       KC_HTTP_PORT: 8080
       KC_HOSTNAME_STRICT: false
       KC_HOSTNAME_STRICT_HTTPS: false
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://app-postgres:5432/keycloak
-      KC_DB_USERNAME: keycloak_db_user
-      KC_DB_PASSWORD: Azerty123_
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: Azerty123_
+      KC_DB: ${POSTGRES_ADMIN_DB:-postgres}
+      KC_DB_URL: jdbc:postgresql://app-postgres:5432/${POSTGRES_KEYCLOAK_DB:-keycloak}
+      KC_DB_USERNAME: ${POSTGRES_KEYCLOAK_USER:-keycloak_db_user}
+      KC_DB_PASSWORD: ${POSTGRES_KEYCLOAK_PASSWORD:-Azerty123_}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-Azerty123_}
+      DOCKER_COMPOSE_HOST_FQDN: ${DOCKER_COMPOSE_HOST_FQDN:-localhost}
+    entrypoint:
+      - /bin/bash
+      - -c
     command:
-      - start-dev
-      - --import-realm
+      - |-
+        [ ! -d /opt/keycloak/data/import ] && mkdir -p /opt/keycloak/data/import
+        sed "s#__DOCKER_COMPOSE_HOST_FQDN__#$$DOCKER_COMPOSE_HOST_FQDN#g" /tmp/app-realm.json.template > /opt/keycloak/data/import/app-realm.json
+        /opt/keycloak/bin/kc.sh start-dev --import-realm
     volumes:
-      - ./keycloak/app-realm.json:/opt/keycloak/data/import/app-realm.json
+      - ./keycloak/app-realm.json.template:/tmp/app-realm.json.template
     networks:
-      - fred-network
+      app-network:
+        aliases:
+          - ${DOCKER_COMPOSE_HOST_FQDN:-"app-keycloak"}
     ports:
       - 0.0.0.0:8080:8080/tcp
     depends_on:
@@ -72,6 +88,6 @@ services:
       start_interval: 10s
 
 networks:
-  fred-network:
+  app-network:
     external: true
     name: fred-shared-network
