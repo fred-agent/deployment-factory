@@ -1,0 +1,79 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ .Values.applicationName }}-job"
+spec:
+  template:
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecrets }}
+      {{- end }}
+
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- if .runAsUser }}
+        runAsUser: {{ .runAsUser }}
+        {{- end }}
+        {{- if .runAsGroup }}
+        runAsGroup: {{ .runAsGroup }}
+        {{- end }}
+        {{- if .fsGroup }}
+        fsGroup: {{ .fsGroup }}
+        {{- end }}
+      {{- end }}
+
+      containers:
+        - name: "{{ .Values.containername | default "init-container" }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.imagePullPolicy | default "IfNotPresent" }}
+
+          {{- if and .Values.env.enabled .Values.env.data }}
+          env:
+{{ toYaml .Values.env.data | indent 12 }}
+          {{- end }}
+
+          {{- if .Values.command }}
+          command:
+{{ toYaml .Values.command | indent 12 }}
+          {{- end }}
+
+          {{- if .Values.args }}
+          args:
+{{ toYaml .Values.args | indent 12 }}
+          {{- end }}
+
+          {{- with .Values.resources }}
+          resources:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+{{ toYaml . | indent 12 }}
+          {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+
+      {{- with .Values.volumes }}
+      volumes:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+
+      {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+      {{- end }}
+
+      restartPolicy: {{ .Values.restartPolicy | default "OnFailure" }}
+
+  backoffLimit: {{ .Values.backoffLimit | default 3 }}

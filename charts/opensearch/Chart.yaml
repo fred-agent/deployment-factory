@@ -1,0 +1,10 @@
+apiVersion: v2
+name: Knownledge-Flow-Opensearch
+description: A Helm chart based on official OpenSearch chart
+version: 2.18.0
+appVersion: "2.18.0"
+
+dependencies:
+  - name: opensearch
+    version: 2.18.0
+    repository: https://opensearch-project.github.io/helm-charts/

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: Keycloack
+description: A Helm chart that depends on Bitnami's Keycloak
+type: application
+version: 22.2.6
+appVersion: "25.0.6-debian-12-r0"
+
+dependencies:
+  - name: keycloak
+    version: 22.2.6
+    repository: https://charts.bitnami.com/bitnami

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: Opensearch-post-install-job
+description: A Helm chart for post installation actions related to opensearch
+type: application
+version: "0.1"
+appVersion: "0.1"

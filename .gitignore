@@ -1,1 +1,3 @@
 docker-compose/.env
+*.lock
+*.tgz
