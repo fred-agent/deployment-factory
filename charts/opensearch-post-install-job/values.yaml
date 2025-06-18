@@ -1,0 +1,203 @@
+applicationName: opensearch-post-install
+
+
+image:
+  repository: mirror.gcr.io/opensearchproject/opensearch
+  tag: "2.18.0"
+  pullPolicy: IfNotPresent
+
+env:
+  enabled: false
+
+command:
+  - bash
+  - -c  
+  - bash /opt/opensearch-post-install-job/job.sh
+  #- tail -f /dev/null
+
+volumeMounts:
+  - name: opensearch-certs
+    mountPath: /usr/share/opensearch/config/certs
+  - name: opensearch-security-config
+    mountPath: /usr/share/opensearch/config/opensearch-security
+  
+  - name: opensearch-post-install-vol
+    mountPath: /opt/opensearch-post-install-job
+
+volumes:
+  - name: "opensearch-certs"
+    persistentVolumeClaim:
+      claimName: opensearch-certs-shared-volume-pvc
+  - name: opensearch-security-config
+    secret:
+      secretName: opensearch-securityconfig
+  - name: opensearch-post-install-vol
+    configMap:
+      name: opensearch-post-install-configmap
+
+
+# ================ Configmaps
+
+ConfigMap:
+  enabled: true
+  data :
+    job.sh: |
+      echo "==== CREATE USER ===="
+      bash /opt/opensearch-post-install-job/create_users_and_roles.sh opensearch
+      echo "==== WAIT FOR OS ===="
+      bash /opt/opensearch-post-install-job/wait_for_os_init.sh opensearch
+      echo "==== CREATE INDICE ===="
+      bash /opt/opensearch-post-install-job/create_indice.sh opensearch metadata-index
+      bash /opt/opensearch-post-install-job/create_indice.sh opensearch vector-index
+      bash /opt/opensearch-post-install-job/create_indice.sh opensearch active-sessions-index
+      bash /opt/opensearch-post-install-job/create_indice.sh opensearch chat-interactions-index
+
+
+    create_users_and_roles.sh: |
+      #!/usr/bin/env bash
+
+      CLUSTER_NAME=$1
+
+      while ! /usr/share/opensearch/plugins/opensearch-security/tools/securityadmin.sh \
+         -cd /usr/share/opensearch/config/opensearch-security \
+         -icl \
+         -nhnv \
+         -cacert /usr/share/opensearch/config/certs/ca.crt \
+         -cert /usr/share/opensearch/config/certs/admin.crt \
+         -key /usr/share/opensearch/config/certs/admin.key \
+         -h $CLUSTER_NAME
+      do
+          sleep 5
+      done
+
+    wait_for_os_init.sh: |
+      #!/usr/bin/env bash
+
+      CLUSTER_NAME=$1
+      TIMEOUT=120
+      CURL_CMD="curl https://$CLUSTER_NAME:9200/_cluster/health --insecure --silent --user admin:Azerty123_ --request GET"
+
+      cat << EOF
+
+      Waiting for OpenSearch initialization
+
+      EOF
+
+      elapsed_time=0
+      while output=$($CURL_CMD); [[ -z "$output" || "$output" == *"OpenSearch Security not initialized"* ]]
+      do
+          if [ $elapsed_time -ge $TIMEOUT ]
+          then
+              echo "Timeout reached (${TIMEOUT}s): OpenSearch is not ready yet"
+              exit 1
+          fi
+          printf .
+          sleep 1
+          (( elapsed_time++ ))
+      done
+
+      echo "OpenSearch is ready and secured"
+
+
+
+    create_indice.sh: |
+      #!/usr/bin/env bash
+
+      CLUSTER_NAME=$1
+      INDEX_NAME=$2
+
+      cd $(dirname $0)
+
+      cat << EOF
+
+      Create indice $INDEX_NAME
+
+      EOF
+
+      if ! curl -v https://$CLUSTER_NAME:9200/$INDEX_NAME \
+          --fail \
+          --insecure \
+          --silent \
+          --user admin:Azerty123_
+      then
+          curl -v https://$CLUSTER_NAME:9200/$INDEX_NAME \
+              --insecure \
+              --silent \
+              --user admin:Azerty123_ \
+              --request PUT \
+              --data-binary @mapping.json \
+              --header "Content-Type: application/json"
+      fi
+    
+
+
+    mapping.json: |
+      {
+        "settings": {
+          "number_of_shards": 1,
+          "number_of_replicas": 1,
+          "knn.algo_param": {
+            "ef_search": "512"
+          },  
+          "knn": "true"
+        },
+        "mappings": {
+          "properties": {
+            "metadata": {
+              "properties": {
+                "my_field_1": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "my_field_2": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                },
+                "my_field_3": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            },
+            "text": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "vector_field": {
+              "type": "knn_vector",
+              "dimension": 1536,
+              "method": {
+                "engine": "nmslib",
+                "space_type": "l2",
+                "name": "hnsw",
+                "parameters": {
+                  "ef_construction": 512,
+                  "m": 16
+                }
+              }
+            }
+          }
+        }
+      }
+
+

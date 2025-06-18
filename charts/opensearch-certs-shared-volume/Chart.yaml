@@ -1,0 +1,6 @@
+apiVersion: v2
+name: opensearch-shared-metadata-volume
+description: A PVC for Opensearch
+type: application
+version: "0.1"
+appVersion: "0.1"

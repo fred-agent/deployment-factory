@@ -1,0 +1,62 @@
+postgresql:
+  global:
+    postgresql:
+      auth:
+        username: postgres
+        password: Azerty123_
+        database: keycloak
+
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+
+    startupProbe:
+      enabled: true
+      failureThreshold: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+
+    livenessProbe:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+
+    readinessProbe:
+      enabled: true
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+
+    customLivenessProbe:
+      exec:
+        command:
+          - sh
+          - -c
+          - pg_isready -U postgres -d keycloak
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+
+    customReadinessProbe:
+      exec:
+        command:
+          - sh
+          - -c
+          - pg_isready -U postgres -d keycloak
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 5
+
+    persistence:
+      enabled: true
+      size: 8Gi
+
+    networkPolicy:
+      enabled: false

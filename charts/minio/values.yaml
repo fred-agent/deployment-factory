@@ -1,0 +1,82 @@
+minio:
+  
+  auth:
+    rootUser: admin
+    rootPassword: Azerty123_
+  
+  extraEnvVars:
+    # - name: NO_PROXY
+    #   value: "*"
+    # - name: MINIO_ROOT_USER
+    #   value: "admin"
+    # - name: MINIO_ROOT_PASSWORD
+    #   value: "Azerty123_"
+
+    - name: MINIO_IDENTITY_OPENID_CONFIG_URL
+      value: "http://keycloak:80/realms/app/.well-known/openid-configuration"
+    - name: MINIO_IDENTITY_OPENID_CLIENT_ID
+      value: "minio-console"
+    - name: MINIO_IDENTITY_OPENID_CLIENT_SECRET
+      value: "Azerty123_"
+    - name: MINIO_IDENTITY_OPENID_CLAIM_NAME
+      value: "policy"
+    - name: MINIO_IDENTITY_OPENID_SCOPES
+      value: "openid"
+    - name: MINIO_IDENTITY_OPENID_REDIRECT_URI
+      value: "http://localhost:9001/oauth_callback"
+
+  
+  ingress:
+    hostname: "minio.test"
+  console:
+    ingress:
+      enabled: true
+      hostname: "minio.test"
+
+  extraVolumes:
+    - name: keycloak-ca
+      secret:
+        secretName: keycloak-crt
+
+  extraVolumeMounts:
+    - name: keycloak-ca
+      mountPath: /certs/CAs/keycloak.crt
+      subPath: tls.crt
+
+  provisioning:
+    enabled: true
+    policies:
+      - name: app-bucket-ro-policy
+        statements:
+          - resources:
+              - "arn:aws:s3:::app-bucket"
+              - "arn:aws:s3:::app-bucket/*"
+            effect: "Allow"
+            actions:
+              - "s3:GetObject"
+              - "s3:PutObject"
+              - "s3:ListBucket"
+      - name: app-bucket-rw-policy
+        statements:
+          - resources:
+              - "arn:aws:s3:::app-bucket"
+              - "arn:aws:s3:::app-bucket/*"
+            effect: "Allow"
+            actions:
+              - "s3:*"
+
+    users:
+      - username: app_ro
+        password: Azerty123_
+        disabled: false
+        policies:
+          - app-bucket-ro-policy
+      - username: app_rw
+        password: Azerty123_
+        disabled: false
+        policies:
+          - app-bucket-rw-policy
+  
+    buckets:
+    - name: app-bucket
+      region: us-east-1

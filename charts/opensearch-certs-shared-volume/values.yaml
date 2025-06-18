@@ -1,0 +1,7 @@
+applicationName: opensearch-certs-shared-volume
+
+persistence:
+  accessModes:
+    - "ReadWriteOnce"
+  size: "1G"                  # it's probably too much
+  storageClassName: local-path

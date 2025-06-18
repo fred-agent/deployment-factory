@@ -1,0 +1,81 @@
+applicationName: "opensearch-pre-install"
+
+
+# ================== Job ==================
+
+image:
+  #repository: mirror.gcr.io/alpine
+  #tag: 3.21.3
+  repository: alpine/openssl
+  tag: latest
+env:
+  enabled: true
+  data:
+  - name: no_proxy
+    value: "*"
+command:
+  # - /bin/sh
+  # - -c 
+  # - tail -f /dev/null
+  - /bin/sh
+  - -c
+  - |
+      cp /opt/opensearch-pre-install-job/create_self_certs_readonly.sh /opt/opensearch-pre-install-job/create_self_certs.sh
+      chmod u+x /opt/opensearch-pre-install-job/create_self_certs.sh
+      /opt/opensearch-pre-install-job/create_self_certs.sh /usr/share/opensearch/config/certs
+      chown -R 1000:1000 /usr/share/opensearch/config/certs
+volumes:
+  - name: "opensearch-certs"
+    persistentVolumeClaim:
+      claimName: opensearch-certs-shared-volume-pvc
+  - name: "create-self-certs-data"
+    configMap:
+      name: "opensearch-pre-install-configmap"
+      items:
+        - key: "create_self_certs.sh"
+          path: "create_self_certs.sh"
+
+
+volumeMounts:
+  - name: opensearch-certs
+    mountPath: /usr/share/opensearch/config/certs
+  - name: create-self-certs-data
+    mountPath: /opt/opensearch-pre-install-job/create_self_certs_readonly.sh
+    subPath: create_self_certs.sh
+
+# ================== Configmap ==================
+
+ConfigMap:
+  enabled: true
+  data :
+    create_self_certs.sh: |
+      #!/bin/sh
+
+      CERTS_DIR=$1
+      COUNTRY="FR"
+      STATE="France"
+      LOCATION="Rennes"
+      ORGANIZATION="Dev"
+
+      function generate_root_cert
+      {
+          openssl genpkey -algorithm RSA -out ca.key -pkeyopt rsa_keygen_bits:4096
+          openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/C=${COUNTRY}/ST=${STATE}/L=${LOCATION}/O=${ORGANIZATION}/CN=OpenSearch-CA"
+      }
+
+      function generate_cert
+      {
+          local NAME=$1
+          local COMMON_NAME=$2
+          openssl genpkey -algorithm RSA -out ${NAME}.key -pkeyopt rsa_keygen_bits:4096
+          openssl req -new -key ${NAME}.key -out ${NAME}.csr -subj "/C=${COUNTRY}/ST=${STATE}/L=${LOCATION}/O=${ORGANIZATION}/CN=${COMMON_NAME}"
+          openssl x509 -req -in ${NAME}.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out ${NAME}.crt -days 365 -sha256
+          cat ${NAME}.crt ${NAME}.key > ${NAME}.pem
+      }
+
+      cd $CERTS_DIR
+
+      generate_root_cert
+      generate_cert "transport" "node"
+      generate_cert "admin" "admin"
+      generate_cert "rest" "rest"

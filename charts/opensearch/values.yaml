@@ -1,0 +1,224 @@
+opensearch:
+  enabled: true
+
+  fullnameOverride: opensearch
+  image:
+    repository: mirror.gcr.io/opensearchproject/opensearch
+    tag: "2.18.0"
+    pullPolicy: IfNotPresent
+
+  nodeGroup: ""
+
+  replicas: 1
+  config:
+    opensearch.yml: |
+      cluster.name: opensearch
+
+      network.host: 0.0.0.0
+
+      # Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
+      # Implicitly done if ".singleNode" is set to "true".
+      # discovery.type: single-node
+
+      # Start OpenSearch Security Demo Configuration
+      # WARNING: revise all the lines below before you go into production
+
+      plugins:
+        security:
+          ssl:
+            transport:
+              pemcert_filepath: /usr/share/opensearch/config/certs/transport.pem
+              pemkey_filepath: /usr/share/opensearch/config/certs/transport.key
+              pemtrustedcas_filepath: /usr/share/opensearch/config/certs/ca.crt
+              enforce_hostname_verification: false
+            http:
+              enabled: true
+              enabled_protocols: ["TLSv1.2"]
+              pemcert_filepath: /usr/share/opensearch/config/certs/rest.pem
+              pemkey_filepath: /usr/share/opensearch/config/certs/rest.key
+              pemtrustedcas_filepath: /usr/share/opensearch/config/certs/ca.crt
+          allow_unsafe_democertificates: false
+          allow_default_init_securityindex: false
+          authcz:
+            admin_dn:
+              - "CN=admin,O=Dev,L=Rennes,ST=France,C=FR"
+          audit.type: log4j
+          audit.config.log4j.logger_name: audit
+          audit.config.log4j.level: INFO
+          enable_snapshot_restore_privilege: true
+          check_snapshot_restore_write_privileges: true
+          restapi:
+            roles_enabled: ["all_access","app_rw_role","app_ro_role"]
+          system_indices:
+            enabled: true
+            indices:
+              [
+                ".opendistro-alerting-config",
+                ".opendistro-alerting-alert*",
+                ".opendistro-anomaly-results*",
+                ".opendistro-anomaly-detector*",
+                ".opendistro-anomaly-checkpoints",
+                ".opendistro-anomaly-detection-state",
+                ".opendistro-reports-*",
+                ".opendistro-notifications-*",
+                ".opendistro-notebooks",
+                ".opendistro-asynchronous-search-response*",
+              ]
+      ######## End OpenSearch Security Demo Configuration ########
+
+
+
+
+#  esJavaOpts: "-Xms512m -Xmx512m"
+
+  extraEnvs:
+    - name: no_proxy
+      value: "*"
+
+  extraConfig:
+    discovery.type: "single-node"
+
+  securityConfig:
+    config:
+      data:
+        config.yml: |
+          _meta:
+            type: "config"
+            config_version: 2
+
+          config:
+            dynamic:
+              http:
+                anonymous_auth_enabled: false
+              authc:
+                basic_internal_auth_domain:
+                  description: "Authenticate via HTTP Basic against internal users database"
+                  http_enabled: true
+                  transport_enabled: true
+                  order: 0
+                  http_authenticator:
+                    type: "basic"
+                    challenge: false
+                  authentication_backend:
+                    type: "internal"
+
+                oidc_auth_domain:
+                  description: "Authenticate via OIDC (OpenID Connect)"
+                  http_enabled: true
+                  transport_enabled: true
+                  order: 1
+                  http_authenticator:
+                    type: "openid"
+                    challenge: true
+                    config:
+                      subject_key: "preferred_username"
+                      roles_key: "opensearch_roles"
+                      openid_connect_url: "http://keycloak:80/realms/app/.well-known/openid-configuration"
+                      client_id: "opensearch-dashboards"
+                      client_secret: "Azerty123_"
+                  authentication_backend:
+                    type: "noop"
+        internal_users.yml: |     
+          _meta:
+            type: "internalusers"
+            config_version: 2
+
+          admin:
+            hash: $2y$12$h.SKV7oNwGH1YzXR4kuNj.h.JadXGymBLGnAbxnlcYoCZ5BLwE7em
+
+          app_rw:
+            hash: $2y$12$h.SKV7oNwGH1YzXR4kuNj.h.JadXGymBLGnAbxnlcYoCZ5BLwE7em
+
+          app_ro:
+            hash: $2y$12$h.SKV7oNwGH1YzXR4kuNj.h.JadXGymBLGnAbxnlcYoCZ5BLwE7em
+        roles.yml: |
+          _meta:
+            type: "roles"
+            config_version: 2
+
+          app_ro_role:
+            index_permissions:
+              - index_patterns:
+                  - "app-index"
+                allowed_actions:
+                  - "read"
+
+          app_rw_role:
+            index_permissions:
+              - index_patterns:
+                  - "app-index"
+                allowed_actions:
+                  - "read"
+                  - "write"
+        roles_mapping.yml: |
+          _meta:
+            type: "rolesmapping"
+            config_version: 2
+
+          all_access:
+            reserved: false
+            users:
+              - "admin"
+            backend_roles:
+              - "admin"
+
+          app_rw_role:
+            reserved: false
+            users:
+              - "app_rw"
+            backend_roles:
+              - "user"
+
+          app_ro_role:
+            reserved: false
+            users:
+              - "app_ro"
+            backend_roles:
+              - "user"
+        action_groups.yml: |
+          _meta:
+            type: "actiongroups"
+            config_version: 2
+
+          UNLIMITED:
+            allowed_actions:
+              - "*"
+        tenants.yml: |
+          _meta:
+            type: "tenants"
+            config_version: 2
+
+          admin_tenant:
+            description: "Tenant for admin users"
+        nodes_dn.yml: |
+          _meta:
+            type: "nodesdn"
+            config_version: 2
+
+          nodes_dn:
+            nodes_dn:
+              - "CN=node,O=Dev,L=Rennes,ST=France,C=FR"
+        whitelist.yml: |
+          _meta:
+            type: "whitelist"
+            config_version: 2
+
+          whitelist:
+            enabled: false
+            requests: {}
+  
+  extraVolumeMounts:
+    - name: certs
+      mountPath: /usr/share/opensearch/config/certs
+
+  extraVolumes:
+    - name: certs
+      persistentVolumeClaim:
+        claimName: opensearch-certs-shared-volume-pvc
+
+  service:
+    type: ClusterIP
+    ports:
+      http: 9200
+
+  healthCheckPath: /_cluster/health

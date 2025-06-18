@@ -1,0 +1,10 @@
+apiVersion: v2
+name: knowledge-flow-opensearch-dashboard
+description: Knowledge-Flow OpenSearch Dashboard
+version: 2.18.0
+appVersion: 2.18.0
+
+dependencies:
+  - name: opensearch-dashboards
+    version: 2.18.0
+    repository: https://opensearch-project.github.io/helm-charts/

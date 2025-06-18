@@ -1,0 +1,58 @@
+opensearch-dashboards:
+
+  image:
+    repository: mirror.gcr.io/opensearchproject/opensearch-dashboards
+    tag: "2.18.0"
+    pullPolicy: IfNotPresent
+
+  fullnameOverride: opensearch-dashboards
+
+  service:
+    type: ClusterIP
+    port: 5601
+
+  extraEnvs:
+    - name: no_proxy
+      value: "*"
+    # - name: OPENSEARCH_HOSTS
+    #   value: https://opensearch:9200
+
+  extraVolumes:
+    - name: certs
+      persistentVolumeClaim:
+        claimName: opensearch-certs-shared-volume-pvc
+
+  extraVolumeMounts:
+    - name: certs
+      mountPath: /usr/share/opensearch/config/certs
+
+  config:
+    opensearch_dashboards.yml: |
+      server.name: opensearch-dashboards
+      server.host: "0.0.0.0"
+      server.ssl.enabled: false
+
+      opensearch.username: admin
+      opensearch.password: Azerty123_
+      opensearch.hosts: [https://opensearch:9200]
+      opensearch.ssl.verificationMode: none
+
+      opensearch_security.auth.multiple_auth_enabled: true
+      opensearch_security.auth.type: ["basicauth","openid"]
+      opensearch_security.openid.client_id: "opensearch-dashboards"
+      opensearch_security.openid.client_secret: Azerty123_
+      opensearch_security.openid.connect_url: "http://keycloak:80/realms/app/.well-known/openid-configuration"
+      opensearch_security.openid.base_redirect_url: "http://localhost:5601"
+      opensearch_security.openid.logout_url: "http://keycloak:80/realms/app/protocol/openid-connect/logout"
+      opensearch_security.openid.verify_hostnames: "false"
+      opensearch_security.openid.scope: "openid roles"
+
+  ingress:
+    enabled: true
+    hosts:
+    - host: opensearch-dashboards.test
+      paths:
+        - path: /
+          backend:
+            serviceName: opensearch-dashboards
+            number: 5601
